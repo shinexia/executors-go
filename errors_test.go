@@ -19,28 +19,58 @@ func getErrors() error {
 }
 
 func TestAppendError(t *testing.T) {
-	err := getErrorN(0)
-	if err != nil {
-		t.Errorf("err0 is not nil: %v", err)
-	} else {
-		fmt.Printf("err0: %v\n", err)
+	err1 := fmt.Errorf("err1")
+	err2 := fmt.Errorf("err2")
+	err3 := fmt.Errorf("err3")
+	err4 := fmt.Errorf("err4")
+	cases := []struct {
+		in   []error
+		want int
+	}{
+		{[]error{nil}, 0},
+		{[]error{nil, nil}, 0},
+		{[]error{nil, nil, nil}, 0},
+		{[]error{nil, nil, nil, nil}, 0},
+		{[]error{err1}, 1},
+		{[]error{err1, nil}, 1},
+		{[]error{nil, err1}, 1},
+		{[]error{err1, err2}, 2},
+		{[]error{err1, err2, nil}, 2},
+		{[]error{nil, err1, err2}, 2},
+		{[]error{err1, nil, err2}, 2},
+		{[]error{err1, err2, err3}, 3},
+		{[]error{err1, err2, err3, nil}, 3},
+		{[]error{nil, err1, err2, err3}, 3},
+		{[]error{err1, nil, err2, err3}, 3},
+		{[]error{err1, err2, nil, err3}, 3},
+		{[]error{err1, err2, err3, err4}, 4},
+		{[]error{err1, err2, err3, err4, nil}, 4},
+		{[]error{nil, nil, err2, err3, err4}, 3},
+		{[]error{err1, nil, nil, err3, err4}, 3},
+		{[]error{err1, err2, nil, nil, err4}, 3},
+		{[]error{err1, err2, err3, nil, nil}, 3},
+		{[]error{err1, err2, err3, err4, nil}, 4},
+		{[]error{nil, errorList{err1, err2}, errorList{err3, err4}}, 4},
 	}
-	for i := 1; i < 5; i++ {
-		err := getErrorN(i)
-		if err == nil {
-			t.Errorf("err%d is nil: %v", i, err)
-		} else {
-			fmt.Printf("err%d: %v\n", i, err)
+	for _, c := range cases {
+		got := AppendError(c.in...)
+		if getErrorLen(got) != c.want {
+			t.Errorf("AppendError(%v) = %v, want %v", c.in, got, c.want)
 		}
 	}
 }
 
-func getErrorN(n int) error {
-	var errOut error
-	for i := 0; i < n; i++ {
-		errOut = AppendError(errOut, fmt.Errorf("err%d", i))
+func getErrorLen(err error) int {
+	switch v := err.(type) {
+	case nil:
+		return 0
+	case errorList:
+		return len(v)
+	case unwrapError:
+		return len(v.Unwrap())
+	default:
+		return 1
 	}
-	return errOut
 }
 
 func TestRuntimeError(t *testing.T) {

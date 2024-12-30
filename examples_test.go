@@ -52,13 +52,13 @@ func TestGettingStarted(t *testing.T) {
 	var snapshot []byte = nil
 	var result int
 	for {
-		var sin any = nil
+		var sin any
 		if len(snapshot) == 0 {
 			sin = 10
 		} else {
 			// load state from snapshot
 			state := &executors.TaskState{}
-			json.Unmarshal(snapshot, state)
+			_ = json.Unmarshal(snapshot, state)
 			sin = state.Stateful
 		}
 		sout, err := executors.Run("test", task, sin, executors.WithCallback(func(state *executors.TaskState, err error) {

@@ -1,5 +1,5 @@
 .PHONY: all
-all: lint test
+all: tidy lint buildtest
 
 .PHONY: tidy
 tidy:
@@ -8,6 +8,10 @@ tidy:
 .PHONY: lint
 lint:
 	golangci-lint run -v
+
+.PHONY: build
+build:
+	go build -v ./...
 
 .PHONY: test
 test:

@@ -7,12 +7,16 @@ import (
 	"strings"
 )
 
-// errorList should not be used directly, see TestErrors
 type errorList []error
+
+// unwrapError the same to errors.joinError.Unwrap
+type unwrapError interface {
+	Unwrap() []error
+}
 
 func (es errorList) Error() string {
 	if len(es) <= 1 {
-		log.Panic("should not come here:", es)
+		log.Panic("[SHOULD_NEVER_HAPPEN]:", es)
 	}
 	b := strings.Builder{}
 	b.Write([]byte("["))
@@ -26,6 +30,12 @@ func (es errorList) Error() string {
 	return b.String()
 }
 
+// Unwrap implements the unwrapError interface
+func (es errorList) Unwrap() []error {
+	return []error(es)
+}
+
+// Format implements the fmt.Formatter interface
 func (es errorList) Format(s fmt.State, verb rune) {
 	n := len(es) - 1
 	switch verb {
@@ -48,21 +58,48 @@ func (es errorList) Format(s fmt.State, verb rune) {
 	}
 }
 
-func AppendError(err error, tail ...error) error {
-	var errOut errorList
-	if err == nil {
+func AppendError(errIn ...error) error {
+	switch len(errIn) {
+	case 0:
+		return nil
+	case 1:
+		return errIn[0]
+	case 2:
+		if errIn[0] == nil {
+			return errIn[1]
+		}
+		if errIn[1] == nil {
+			return errIn[0]
+		}
+	}
+	var (
+		errOut errorList
+		err    = errIn[0]
+		tail   = errIn[1:]
+	)
+	switch we := err.(type) {
+	case nil:
 		if len(tail) == 1 {
 			return tail[0]
 		}
 		errOut = make(errorList, 0, len(tail))
-	} else if elist, ok := err.(errorList); ok {
-		errOut = elist
-	} else {
+	case errorList:
+		errOut = we
+	case unwrapError:
+		errOut = errorList(we.Unwrap())
+	default:
 		errOut = make(errorList, 1, 1+len(tail))
 		errOut[0] = err
 	}
 	for _, e := range tail {
-		if e != nil {
+		switch v := e.(type) {
+		case nil:
+			continue
+		case errorList:
+			errOut = append(errOut, v...)
+		case unwrapError:
+			errOut = append(errOut, v.Unwrap()...)
+		default:
 			errOut = append(errOut, e)
 		}
 	}
@@ -113,14 +150,23 @@ func (e runtimeError) Format(s fmt.State, verb rune) {
 }
 
 func IsRuntimeError(err error) bool {
-	e, ok := err.(errorList)
+	_, ok := err.(runtimeError)
 	if ok {
-		for _, x := range e {
-			if IsRuntimeError(x) {
-				return true
-			}
+		return true
+	}
+	var es []error
+	switch e := err.(type) {
+	case errorList:
+		es = e
+	case unwrapError:
+		es = e.Unwrap()
+	default:
+		return false
+	}
+	for _, x := range es {
+		if IsRuntimeError(x) {
+			return true
 		}
 	}
-	_, ok = err.(runtimeError)
-	return ok
+	return false
 }
